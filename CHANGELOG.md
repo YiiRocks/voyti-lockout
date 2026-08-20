@@ -1,5 +1,7 @@
 # Yii Voyti Change Log
 
+## 1.0.2 under development
+
 ## 1.0.1 August 20, 2026
 
 - Chg: Replace the hard lockout on login and registration attempts with a progressive delay that
