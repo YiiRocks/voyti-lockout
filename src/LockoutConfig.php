@@ -11,9 +11,11 @@ namespace YiiRocks\Voyti\Lockout;
 final readonly class LockoutConfig
 {
     public function __construct(
-        public int $loginMaxAttempts,
-        public int $loginWindowSeconds,
-        public int $registrationMaxAttempts,
-        public int $registrationWindowSeconds,
+        public int $loginMinRetentionSeconds,
+        public int $loginBaseDelaySeconds,
+        public int $loginMaxDelaySeconds,
+        public int $registrationMinRetentionSeconds,
+        public int $registrationBaseDelaySeconds,
+        public int $registrationMaxDelaySeconds,
     ) {}
 }

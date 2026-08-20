@@ -12,10 +12,12 @@ use Yiisoft\Translator\SimpleMessageFormatter;
 return [
     // Package configuration, built once from the host's `yiirocks/voyti.lockout` params array.
     LockoutConfig::class => static fn() => new LockoutConfig(
-        loginMaxAttempts: $params['yiirocks/voyti']['lockout']['loginMaxAttempts'] ?? 5,
-        loginWindowSeconds: $params['yiirocks/voyti']['lockout']['loginWindowSeconds'] ?? 900,
-        registrationMaxAttempts: $params['yiirocks/voyti']['lockout']['registrationMaxAttempts'] ?? 10,
-        registrationWindowSeconds: $params['yiirocks/voyti']['lockout']['registrationWindowSeconds'] ?? 60,
+        loginMinRetentionSeconds: $params['yiirocks/voyti']['lockout']['loginMinRetentionSeconds'] ?? 900,
+        loginBaseDelaySeconds: $params['yiirocks/voyti']['lockout']['loginBaseDelaySeconds'] ?? 1,
+        loginMaxDelaySeconds: $params['yiirocks/voyti']['lockout']['loginMaxDelaySeconds'] ?? 3600,
+        registrationMinRetentionSeconds: $params['yiirocks/voyti']['lockout']['registrationMinRetentionSeconds'] ?? 60,
+        registrationBaseDelaySeconds: $params['yiirocks/voyti']['lockout']['registrationBaseDelaySeconds'] ?? 1,
+        registrationMaxDelaySeconds: $params['yiirocks/voyti']['lockout']['registrationMaxDelaySeconds'] ?? 600,
     ),
 
     // Translation category source for this package's message files.

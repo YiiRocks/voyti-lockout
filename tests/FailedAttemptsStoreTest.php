@@ -25,12 +25,42 @@ final class FailedAttemptsStoreTest extends TestCase
         self::assertSame(0, (new FailedAttemptsStore($cache))->getAttemptCount('key'));
     }
 
-    public function testRecordFailureIncrementsCountAndRenewsTtlToTheFullWindow(): void
+    public function testGetRetryAfterSecondsUsesTheCurrentAttemptCount(): void
+    {
+        $cache = $this->createStub(CacheInterface::class);
+        $cache->method('get')->willReturnMap([['key', 0, 6]]);
+
+        self::assertSame(
+            32,
+            (new FailedAttemptsStore($cache))->getRetryAfterSeconds('key', baseDelaySeconds: 1, maxDelaySeconds: 3600),
+        );
+    }
+
+    public function testRecordFailureExtendsTtlPastTheWindowOnceTheDelayExceedsIt(): void
+    {
+        $cache = $this->createMock(CacheInterface::class);
+        $cache->method('get')->willReturnMap([['key', 0, 13]]);
+        $cache->expects(self::once())->method('set')->with('key', 14, 3600);
+
+        (new FailedAttemptsStore($cache))->recordFailure(
+            'key',
+            minRetentionSeconds: 900,
+            baseDelaySeconds: 1,
+            maxDelaySeconds: 3600,
+        );
+    }
+
+    public function testRecordFailureIncrementsCountAndRenewsTtlToTheFullWindowWhileTheDelayStaysBelowIt(): void
     {
         $cache = $this->createMock(CacheInterface::class);
         $cache->method('get')->willReturnMap([['key', 0, 2]]);
         $cache->expects(self::once())->method('set')->with('key', 3, 900);
 
-        (new FailedAttemptsStore($cache))->recordFailure('key', 900);
+        (new FailedAttemptsStore($cache))->recordFailure(
+            'key',
+            minRetentionSeconds: 900,
+            baseDelaySeconds: 1,
+            maxDelaySeconds: 3600,
+        );
     }
 }

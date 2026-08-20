@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace YiiRocks\Voyti\Lockout\Tests\Listener;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use YiiRocks\Voyti\Event\Auth\BeforeRegisterEvent;
 use YiiRocks\Voyti\Exception\ActionPreventedException;
 use YiiRocks\Voyti\Lockout\FailedAttemptsStore;
@@ -16,16 +17,29 @@ use Yiisoft\Cache\ArrayCache;
 
 final class BlockLockedOutRegistrationListenerTest extends TestCase
 {
-    public function testAllowsRegistrationBelowTheThreshold(): void
+    public static function priorFailuresProvider(): array
+    {
+        return [
+            'first failure, delay starts at the base' => [
+                'priorFailures' => 1,
+                'expectedRetryAfterSeconds' => 1,
+            ],
+            'several failures in, still below the cap' => [
+                'priorFailures' => 9,
+                'expectedRetryAfterSeconds' => 256,
+            ],
+            'well past enough failures, delay capped at the maximum' => [
+                'priorFailures' => 11,
+                'expectedRetryAfterSeconds' => 600,
+            ],
+        ];
+    }
+
+    public function testAllowsRegistrationWithNoPriorFailures(): void
     {
         $store = new FailedAttemptsStore(new ArrayCache());
-        $store->recordFailure(LockoutKeyHelper::registration('203.0.113.1'), 60);
 
-        $listener = new BlockLockedOutRegistrationListener(
-            $store,
-            new LockoutConfig(5, 900, 10, 60),
-            $this->createTranslator(),
-        );
+        $listener = new BlockLockedOutRegistrationListener($store, self::createConfig(), $this->createTranslator());
 
         $user = new User();
         $user->setRegistrationIp('203.0.113.1');
@@ -34,18 +48,22 @@ final class BlockLockedOutRegistrationListenerTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testBlocksRegistrationOnceTheThresholdIsReached(): void
-    {
+    #[DataProvider('priorFailuresProvider')]
+    public function testBlocksRegistrationWithAGrowingDelayOnceAFailureIsRecorded(
+        int $priorFailures,
+        int $expectedRetryAfterSeconds,
+    ): void {
         $store = new FailedAttemptsStore(new ArrayCache());
-        for ($i = 0; $i < 10; $i++) {
-            $store->recordFailure(LockoutKeyHelper::registration('203.0.113.1'), 60);
+        for ($i = 0; $i < $priorFailures; $i++) {
+            $store->recordFailure(
+                LockoutKeyHelper::registration('203.0.113.1'),
+                minRetentionSeconds: 60,
+                baseDelaySeconds: 1,
+                maxDelaySeconds: 600,
+            );
         }
 
-        $listener = new BlockLockedOutRegistrationListener(
-            $store,
-            new LockoutConfig(5, 900, 10, 60),
-            $this->createTranslator(),
-        );
+        $listener = new BlockLockedOutRegistrationListener($store, self::createConfig(), $this->createTranslator());
 
         $user = new User();
         $user->setRegistrationIp('203.0.113.1');
@@ -55,7 +73,7 @@ final class BlockLockedOutRegistrationListenerTest extends TestCase
             self::fail('Expected ActionPreventedException to be thrown.');
         } catch (ActionPreventedException $exception) {
             self::assertSame(
-                'Too many registration attempts. Please try again later.',
+                "Too many registration attempts. Please try again in $expectedRetryAfterSeconds seconds.",
                 $exception->getMessage(),
             );
             self::assertSame(['email'], $exception->getErrorDetails());
@@ -65,17 +83,28 @@ final class BlockLockedOutRegistrationListenerTest extends TestCase
     public function testFallsBackToLocalhostWhenRegistrationIpIsNotSet(): void
     {
         $store = new FailedAttemptsStore(new ArrayCache());
-        for ($i = 0; $i < 5; $i++) {
-            $store->recordFailure(LockoutKeyHelper::registration('127.0.0.1'), 60);
-        }
-
-        $listener = new BlockLockedOutRegistrationListener(
-            $store,
-            new LockoutConfig(5, 900, 5, 60),
-            $this->createTranslator(),
+        $store->recordFailure(
+            LockoutKeyHelper::registration('127.0.0.1'),
+            minRetentionSeconds: 60,
+            baseDelaySeconds: 1,
+            maxDelaySeconds: 600,
         );
+
+        $listener = new BlockLockedOutRegistrationListener($store, self::createConfig(), $this->createTranslator());
 
         $this->expectException(ActionPreventedException::class);
         $listener->onBeforeRegister(new BeforeRegisterEvent([], new User()));
+    }
+
+    private static function createConfig(): LockoutConfig
+    {
+        return new LockoutConfig(
+            loginMinRetentionSeconds: 900,
+            loginBaseDelaySeconds: 1,
+            loginMaxDelaySeconds: 3600,
+            registrationMinRetentionSeconds: 60,
+            registrationBaseDelaySeconds: 1,
+            registrationMaxDelaySeconds: 600,
+        );
     }
 }

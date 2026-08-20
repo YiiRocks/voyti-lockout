@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace YiiRocks\Voyti\Lockout\Tests\Listener;
 
+use Psr\SimpleCache\CacheInterface;
 use YiiRocks\Voyti\Event\Auth\FailedLoginEvent;
 use YiiRocks\Voyti\Lockout\FailedAttemptsStore;
 use YiiRocks\Voyti\Lockout\Listener\RecordFailedLoginAttemptListener;
@@ -17,29 +18,42 @@ final class RecordFailedLoginAttemptListenerTest extends TestCase
     public function testFallsBackToLocalhostWhenRemoteAddrIsMissing(): void
     {
         $store = new FailedAttemptsStore(new ArrayCache());
-        $config = new LockoutConfig(
-            loginMaxAttempts: 5,
-            loginWindowSeconds: 900,
-            registrationMaxAttempts: 10,
-            registrationWindowSeconds: 60,
-        );
-        $listener = new RecordFailedLoginAttemptListener($store, $config);
+        $listener = new RecordFailedLoginAttemptListener($store, self::createConfig());
 
         $listener->onFailedLogin(new FailedLoginEvent('user@example.com', 'invalid_password'));
 
         self::assertSame(1, $store->getAttemptCount(LockoutKeyHelper::login('127.0.0.1')));
     }
 
+    public function testPassesTheLoginDelayConfigurationThroughToTheStoreTtl(): void
+    {
+        // 12 prior failures recorded; the 13th pushes the delay (1 * 2^12 = 4096s) past the
+        // 3600s cap, which is in turn past the 900s window - proving the login-specific config
+        // values (not the registration ones) are what drives the TTL.
+        $cache = $this->createMock(CacheInterface::class);
+        $cache->method('get')->willReturnMap([[LockoutKeyHelper::login('203.0.113.1'), 0, 12]]);
+        $cache->expects(self::once())->method('set')->with(LockoutKeyHelper::login('203.0.113.1'), 13, 3600);
+
+        $store = new FailedAttemptsStore($cache);
+        $config = new LockoutConfig(
+            loginMinRetentionSeconds: 900,
+            loginBaseDelaySeconds: 1,
+            loginMaxDelaySeconds: 3600,
+            registrationMinRetentionSeconds: 99,
+            registrationBaseDelaySeconds: 99,
+            registrationMaxDelaySeconds: 99,
+        );
+        $listener = new RecordFailedLoginAttemptListener($store, $config);
+
+        $listener->onFailedLogin(
+            new FailedLoginEvent('user@example.com', 'invalid_password', ['REMOTE_ADDR' => '203.0.113.1']),
+        );
+    }
+
     public function testRecordsFailureAgainstTheRequestIp(): void
     {
         $store = new FailedAttemptsStore(new ArrayCache());
-        $config = new LockoutConfig(
-            loginMaxAttempts: 5,
-            loginWindowSeconds: 900,
-            registrationMaxAttempts: 10,
-            registrationWindowSeconds: 60,
-        );
-        $listener = new RecordFailedLoginAttemptListener($store, $config);
+        $listener = new RecordFailedLoginAttemptListener($store, self::createConfig());
 
         $listener->onFailedLogin(
             new FailedLoginEvent('user@example.com', 'invalid_password', ['REMOTE_ADDR' => '203.0.113.1']),
@@ -49,5 +63,17 @@ final class RecordFailedLoginAttemptListenerTest extends TestCase
         );
 
         self::assertSame(2, $store->getAttemptCount(LockoutKeyHelper::login('203.0.113.1')));
+    }
+
+    private static function createConfig(): LockoutConfig
+    {
+        return new LockoutConfig(
+            loginMinRetentionSeconds: 900,
+            loginBaseDelaySeconds: 1,
+            loginMaxDelaySeconds: 3600,
+            registrationMinRetentionSeconds: 60,
+            registrationBaseDelaySeconds: 1,
+            registrationMaxDelaySeconds: 600,
+        );
     }
 }

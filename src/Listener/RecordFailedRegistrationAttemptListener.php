@@ -25,6 +25,11 @@ final readonly class RecordFailedRegistrationAttemptListener
     public function onRegisterFormValidationFailed(RegisterFormValidationFailedEvent $event): void
     {
         $ip = LoginMetadataHelper::remoteAddr($event->getServerParams());
-        $this->store->recordFailure(LockoutKeyHelper::registration($ip), $this->config->registrationWindowSeconds);
+        $this->store->recordFailure(
+            LockoutKeyHelper::registration($ip),
+            minRetentionSeconds: $this->config->registrationMinRetentionSeconds,
+            baseDelaySeconds: $this->config->registrationBaseDelaySeconds,
+            maxDelaySeconds: $this->config->registrationMaxDelaySeconds,
+        );
     }
 }

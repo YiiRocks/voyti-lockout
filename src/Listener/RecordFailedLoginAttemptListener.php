@@ -24,6 +24,11 @@ final readonly class RecordFailedLoginAttemptListener
     public function onFailedLogin(FailedLoginEvent $event): void
     {
         $ip = LoginMetadataHelper::remoteAddr($event->getServerParams());
-        $this->store->recordFailure(LockoutKeyHelper::login($ip), $this->config->loginWindowSeconds);
+        $this->store->recordFailure(
+            LockoutKeyHelper::login($ip),
+            minRetentionSeconds: $this->config->loginMinRetentionSeconds,
+            baseDelaySeconds: $this->config->loginBaseDelaySeconds,
+            maxDelaySeconds: $this->config->loginMaxDelaySeconds,
+        );
     }
 }
