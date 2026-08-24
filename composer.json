@@ -28,6 +28,7 @@
     },
     "require": {
         "php": ">=8.3",
+        "psr/clock": "^1.0",
         "psr/simple-cache": "^2.0 || ^3.0",
         "yiirocks/voyti": "^1.0"
     },

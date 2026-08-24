@@ -2,6 +2,10 @@
 
 ## 1.0.2 under development
 
+- Fix: `FailedAttemptsStore::getRetryAfterSeconds()` now returns the wait time actually remaining,
+  counting down as time passes since the last failure, instead of returning the same full delay for as
+  long as the attempt count stays cached.
+
 ## 1.0.1 August 20, 2026
 
 - Chg: Replace the hard lockout on login and registration attempts with a progressive delay that

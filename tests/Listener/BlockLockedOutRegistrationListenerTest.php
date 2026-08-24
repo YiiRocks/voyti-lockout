@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace YiiRocks\Voyti\Lockout\Tests\Listener;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use YiiRocks\Voyti\Event\Auth\BeforeRegisterEvent;
 use YiiRocks\Voyti\Exception\ActionPreventedException;
@@ -11,6 +12,7 @@ use YiiRocks\Voyti\Lockout\FailedAttemptsStore;
 use YiiRocks\Voyti\Lockout\Listener\BlockLockedOutRegistrationListener;
 use YiiRocks\Voyti\Lockout\LockoutConfig;
 use YiiRocks\Voyti\Lockout\LockoutKeyHelper;
+use YiiRocks\Voyti\Lockout\Tests\Support\FixedClock;
 use YiiRocks\Voyti\Lockout\Tests\TestCase;
 use YiiRocks\Voyti\Model\User;
 use Yiisoft\Cache\ArrayCache;
@@ -37,7 +39,7 @@ final class BlockLockedOutRegistrationListenerTest extends TestCase
 
     public function testAllowsRegistrationWithNoPriorFailures(): void
     {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
 
         $listener = new BlockLockedOutRegistrationListener($store, self::createConfig(), $this->createTranslator());
 
@@ -53,7 +55,7 @@ final class BlockLockedOutRegistrationListenerTest extends TestCase
         int $priorFailures,
         int $expectedRetryAfterSeconds,
     ): void {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
         for ($i = 0; $i < $priorFailures; $i++) {
             $store->recordFailure(
                 LockoutKeyHelper::registration('203.0.113.1'),
@@ -82,7 +84,7 @@ final class BlockLockedOutRegistrationListenerTest extends TestCase
 
     public function testFallsBackToLocalhostWhenRegistrationIpIsNotSet(): void
     {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
         $store->recordFailure(
             LockoutKeyHelper::registration('127.0.0.1'),
             minRetentionSeconds: 60,

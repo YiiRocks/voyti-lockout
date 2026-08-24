@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace YiiRocks\Voyti\Lockout\Tests\Listener;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use YiiRocks\Voyti\Event\Auth\BeforeLoginEvent;
 use YiiRocks\Voyti\Exception\ActionPreventedException;
@@ -11,6 +12,7 @@ use YiiRocks\Voyti\Lockout\FailedAttemptsStore;
 use YiiRocks\Voyti\Lockout\Listener\BlockLockedOutLoginListener;
 use YiiRocks\Voyti\Lockout\LockoutConfig;
 use YiiRocks\Voyti\Lockout\LockoutKeyHelper;
+use YiiRocks\Voyti\Lockout\Tests\Support\FixedClock;
 use YiiRocks\Voyti\Lockout\Tests\TestCase;
 use YiiRocks\Voyti\Model\User;
 use Yiisoft\Cache\ArrayCache;
@@ -37,7 +39,7 @@ final class BlockLockedOutLoginListenerTest extends TestCase
 
     public function testAllowsLoginWithNoPriorFailures(): void
     {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
 
         $listener = new BlockLockedOutLoginListener($store, self::createConfig(), $this->createTranslator());
 
@@ -51,7 +53,7 @@ final class BlockLockedOutLoginListenerTest extends TestCase
         int $priorFailures,
         int $expectedRetryAfterSeconds,
     ): void {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
         for ($i = 0; $i < $priorFailures; $i++) {
             $store->recordFailure(
                 LockoutKeyHelper::login('203.0.113.1'),
@@ -77,7 +79,7 @@ final class BlockLockedOutLoginListenerTest extends TestCase
 
     public function testDoesNotBlockADifferentIpSharingNoFailures(): void
     {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
         $store->recordFailure(
             LockoutKeyHelper::login('203.0.113.1'),
             minRetentionSeconds: 900,

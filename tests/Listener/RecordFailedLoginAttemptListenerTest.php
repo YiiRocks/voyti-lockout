@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace YiiRocks\Voyti\Lockout\Tests\Listener;
 
+use DateTimeImmutable;
 use Psr\SimpleCache\CacheInterface;
 use YiiRocks\Voyti\Event\Auth\FailedLoginEvent;
 use YiiRocks\Voyti\Lockout\FailedAttemptsStore;
 use YiiRocks\Voyti\Lockout\Listener\RecordFailedLoginAttemptListener;
 use YiiRocks\Voyti\Lockout\LockoutConfig;
 use YiiRocks\Voyti\Lockout\LockoutKeyHelper;
+use YiiRocks\Voyti\Lockout\Tests\Support\FixedClock;
 use YiiRocks\Voyti\Lockout\Tests\TestCase;
 use Yiisoft\Cache\ArrayCache;
 
@@ -17,7 +19,7 @@ final class RecordFailedLoginAttemptListenerTest extends TestCase
 {
     public function testFallsBackToLocalhostWhenRemoteAddrIsMissing(): void
     {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
         $listener = new RecordFailedLoginAttemptListener($store, self::createConfig());
 
         $listener->onFailedLogin(new FailedLoginEvent('user@example.com', 'invalid_password'));
@@ -30,11 +32,15 @@ final class RecordFailedLoginAttemptListenerTest extends TestCase
         // 12 prior failures recorded; the 13th pushes the delay (1 * 2^12 = 4096s) past the
         // 3600s cap, which is in turn past the 900s window - proving the login-specific config
         // values (not the registration ones) are what drives the TTL.
+        $now = new DateTimeImmutable();
         $cache = $this->createMock(CacheInterface::class);
         $cache->method('get')->willReturnMap([[LockoutKeyHelper::login('203.0.113.1'), 0, 12]]);
-        $cache->expects(self::once())->method('set')->with(LockoutKeyHelper::login('203.0.113.1'), 13, 3600);
+        $cache->expects(self::exactly(2))->method('set')->willReturnMap([
+            [LockoutKeyHelper::login('203.0.113.1'), 13, 3600, true],
+            [LockoutKeyHelper::login('203.0.113.1') . '.failedAt', $now->getTimestamp(), 3600, true],
+        ]);
 
-        $store = new FailedAttemptsStore($cache);
+        $store = new FailedAttemptsStore($cache, new FixedClock($now));
         $config = new LockoutConfig(
             loginMinRetentionSeconds: 900,
             loginBaseDelaySeconds: 1,
@@ -52,7 +58,7 @@ final class RecordFailedLoginAttemptListenerTest extends TestCase
 
     public function testRecordsFailureAgainstTheRequestIp(): void
     {
-        $store = new FailedAttemptsStore(new ArrayCache());
+        $store = new FailedAttemptsStore(new ArrayCache(), new FixedClock(new DateTimeImmutable()));
         $listener = new RecordFailedLoginAttemptListener($store, self::createConfig());
 
         $listener->onFailedLogin(
