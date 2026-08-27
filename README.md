@@ -1,6 +1,6 @@
 # Voyti Lockout
 
-Brute-force protection for Voyti authentication endpoints. Tracks failed login and registration attempts per IP address and blocks further attempts, even with correct credentials, once a configurable threshold is reached.
+Brute-force protection for Voyti authentication endpoints.
 
 [![Packagist Version](https://img.shields.io/packagist/v/yiirocks/voyti-lockout.svg)](https://packagist.org/packages/yiirocks/voyti-lockout)
 [![PHP from Packagist](https://img.shields.io/packagist/php-v/yiirocks/voyti-lockout.svg)](https://php.net/)

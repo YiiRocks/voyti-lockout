@@ -1,4 +1,4 @@
-# Yii Voyti Change Log
+# Yii3 Voyti Lockout Changelog
 
 ## 1.0.2 under development
 
