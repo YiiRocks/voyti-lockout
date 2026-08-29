@@ -1,5 +1,7 @@
 # Yii3 Voyti Lockout Changelog
 
+## 1.0.3 under development
+
 ## 1.0.2 - August 29, 2026
 
 - Bug: `FailedAttemptsStore::getRetryAfterSeconds()` now returns the wait time actually remaining,
